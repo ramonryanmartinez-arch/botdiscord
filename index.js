@@ -1,21 +1,36 @@
 const express = require("express");
-const { Client, GatewayIntentBits } = require("discord.js");
+const fs = require("fs");
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
-// 🐾 IMPORTA PETS
 const pets = require("./pets");
 
+// =========================
+// DATABASE
+// =========================
+
+const DB_FILE = "./db.json";
+
+function loadDB() {
+  if (!fs.existsSync(DB_FILE)) return {};
+  return JSON.parse(fs.readFileSync(DB_FILE));
+}
+
+function saveDB(db) {
+  fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+}
+
+// =========================
+// EXPRESS
+// =========================
+
 const app = express();
+app.get("/", (req, res) => res.send("Bot online"));
+app.listen(process.env.PORT || 3000);
 
-// 🌐 PORTA (OBRIGATÓRIO NO RENDER)
-const PORT = process.env.PORT || 3000;
-app.get("/", (req, res) => {
-  res.send("Bot online");
-});
-app.listen(PORT, () => {
-  console.log("Servidor rodando na porta " + PORT);
-});
+// =========================
+// DISCORD
+// =========================
 
-// 🤖 BOT DISCORD
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -24,60 +39,144 @@ const client = new Client({
   ]
 });
 
-// 🧠 pega valor do pet
-function getPetValue(name) {
-  return pets[name.toLowerCase().trim()] || -1;
-}
-
-// 📊 COMANDO /avaliar
-client.on("messageCreate", (message) => {
-  if (message.author.bot) return;
-  if (!message.content.startsWith("/avaliar")) return;
-
-  const parts = message.content
-    .replace("/avaliar", "")
-    .trim()
-    .split(" vs ");
-
-  if (parts.length !== 2) {
-    return message.reply("Use: /avaliar pet + pet vs pet + pet");
-  }
-
-  const lado1 = parts[0].split("+").map(p => p.trim());
-  const lado2 = parts[1].split("+").map(p => p.trim());
-
-  let total1 = 0;
-  let total2 = 0;
-
-  for (let p of lado1) {
-    let v = getPetValue(p);
-    if (v === -1) return message.reply(`❌ Pet não encontrado: ${p}`);
-    total1 += v;
-  }
-
-  for (let p of lado2) {
-    let v = getPetValue(p);
-    if (v === -1) return message.reply(`❌ Pet não encontrado: ${p}`);
-    total2 += v;
-  }
-
-  let result =
-    total2 > total1 ? "WIN 🟢" :
-    total2 < total1 ? "LOSE 🔴" :
-    "FAIR ⚖️";
-
-  message.reply(
-    `📊 TRADE RESULTADO\n\n` +
-    `Seu lado: ${parts[0]} = ${total1}\n` +
-    `Outro lado: ${parts[1]} = ${total2}\n\n` +
-    `${result}`
-  );
-});
-
-// 🤖 ONLINE
 client.once("ready", () => {
   console.log(`Bot online como ${client.user.tag}`);
 });
 
-// 🔑 TOKEN (RENDER)
+// =========================
+// COMANDOS
+// =========================
+
+client.on("messageCreate", async (message) => {
+  if (message.author.bot) return;
+
+  const db = loadDB();
+
+  // 📦 ADD PET
+  if (message.content.startsWith("/addpet")) {
+    const args = message.content.split(" ").slice(1);
+    const pet = args[0]?.toLowerCase();
+    const qtd = parseInt(args[1] || "1");
+
+    if (!pet) return message.reply("Use: /addpet nome quantidade");
+
+    if (!db[message.author.id]) db[message.author.id] = {};
+    if (!db[message.author.id][pet]) db[message.author.id][pet] = 0;
+
+    db[message.author.id][pet] += qtd;
+    saveDB(db);
+
+    return message.reply(`✅ Adicionado ${qtd}x ${pet}`);
+  }
+
+  // 🗑️ REMOVE PET
+  if (message.content.startsWith("/removepet")) {
+    const args = message.content.split(" ").slice(1);
+    const pet = args[0]?.toLowerCase();
+    const qtd = parseInt(args[1] || "1");
+
+    if (!pet) return message.reply("Use: /removepet nome quantidade");
+
+    if (!db[message.author.id] || !db[message.author.id][pet]) {
+      return message.reply("❌ Você não tem esse pet.");
+    }
+
+    db[message.author.id][pet] -= qtd;
+
+    if (db[message.author.id][pet] <= 0) {
+      delete db[message.author.id][pet];
+    }
+
+    saveDB(db);
+
+    return message.reply(`🗑️ Removido ${qtd}x ${pet}`);
+  }
+
+  // 🔎 PROCURAR
+  if (message.content.startsWith("/procurar")) {
+    const pet = message.content.split(" ").slice(1).join(" ").toLowerCase();
+
+    let result = [];
+
+    for (let user in db) {
+      if (db[user][pet]) {
+        result.push(`👤 <@${user}> → ${db[user][pet]}x`);
+      }
+    }
+
+    if (result.length === 0) {
+      return message.reply("❌ Ninguém possui esse pet.");
+    }
+
+    return message.reply(`🔎 ${pet}\n\n${result.join("\n")}`);
+  }
+
+  // 📦 MEUS PETS
+  if (message.content === "/meuspets") {
+    const user = db[message.author.id];
+
+    if (!user) return message.reply("Você não tem pets.");
+
+    let text = "📦 SEUS PETS:\n\n";
+
+    for (let p in user) {
+      text += `• ${p}: ${user[p]}x\n`;
+    }
+
+    return message.reply(text);
+  }
+
+  // 📊 TRADE AVALIAR
+  if (message.content.startsWith("/avaliar")) {
+    const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
+
+    if (parts.length !== 2) {
+      return message.reply("Use: /avaliar pet + pet vs pet + pet");
+    }
+
+    const lado1 = parts[0].split("+").map(p => p.trim());
+    const lado2 = parts[1].split("+").map(p => p.trim());
+
+    let t1 = 0;
+    let t2 = 0;
+
+    for (let p of lado1) {
+      const v = pets[p];
+      if (!v) return message.reply(`❌ ${p} não existe`);
+      t1 += v;
+    }
+
+    for (let p of lado2) {
+      const v = pets[p];
+      if (!v) return message.reply(`❌ ${p} não existe`);
+      t2 += v;
+    }
+
+    const diff = Math.abs(t1 - t2);
+    const media = (t1 + t2) / 2;
+    const percent = diff / media;
+
+    let resultado = "";
+
+    if (percent <= 0.05) resultado = "⚖️ justa";
+    else if (percent <= 0.15) resultado = t2 > t1 ? "🟠 Ganha um pouco" : "🔴 Perde um pouco";
+    else resultado = t2 > t1 ? "❌ Você sai ganhando" : "❌ Você sai perdendo";
+
+    const embed = new EmbedBuilder()
+      .setTitle("📊 TRADE")
+      .addFields(
+        { name: "Seu lado", value: `${parts[0]}\n💰 ${t1}` },
+        { name: "Outro lado", value: `${parts[1]}\n💰 ${t2}` },
+        { name: "Resultado", value: resultado }
+      )
+      .setColor(0x00bfff);
+
+    return message.reply({ embeds: [embed] });
+  }
+});
+
+// =========================
+// LOGIN
+// =========================
+
 client.login(process.env.DISCORD_TOKEN);
