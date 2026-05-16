@@ -36,7 +36,7 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// VALOR PET
+// VALOR DO PET
 // =========================
 
 function getPetValue(nomeCompleto) {
@@ -56,36 +56,6 @@ function getPetValue(nomeCompleto) {
   if (!base) return -1;
 
   return Math.floor(base * mult);
-}
-
-// =========================
-// BARRA ANIMADA
-// =========================
-
-function criarFramesBarra(v1, v2) {
-  const total = v1 + v2;
-  const size = 10;
-
-  const p1 = total === 0 ? 0 : v1 / total;
-  const verdesFinais = Math.round(p1 * size);
-
-  let frames = [];
-
-  for (let i = 0; i <= size; i++) {
-    let barra = "";
-
-    for (let j = 0; j < size; j++) {
-      if (j < i) {
-        barra += j < verdesFinais ? "🟩" : "🟥";
-      } else {
-        barra += "⬛";
-      }
-    }
-
-    frames.push(barra);
-  }
-
-  return frames;
 }
 
 // =========================
@@ -113,7 +83,70 @@ client.on("messageCreate", async (message) => {
 
   const db = loadDB();
 
-  // 📊 AVALIAR (W OR L ANIMADO)
+  // =========================
+  // ADD PET
+  // =========================
+  if (message.content.startsWith("/addpet")) {
+    const args = message.content.split(" ").slice(1);
+    const pet = args[0]?.toLowerCase().trim();
+    const qtd = parseInt(args[1] || "1");
+
+    if (!pet) return message.reply("Use: /addpet nome quantidade");
+
+    if (!db[message.author.id]) db[message.author.id] = {};
+    if (!db[message.author.id][pet]) db[message.author.id][pet] = 0;
+
+    db[message.author.id][pet] += qtd;
+    saveDB(db);
+
+    return message.reply(`✅ Adicionado ${qtd}x ${pet}`);
+  }
+
+  // =========================
+  // REMOVE PET
+  // =========================
+  if (message.content.startsWith("/removepet")) {
+    const args = message.content.split(" ").slice(1);
+    const pet = args[0]?.toLowerCase().trim();
+    const qtd = parseInt(args[1] || "1");
+
+    if (!pet) return message.reply("Use: /removepet nome quantidade");
+
+    if (!db[message.author.id] || !db[message.author.id][pet]) {
+      return message.reply("❌ Você não tem esse pet.");
+    }
+
+    db[message.author.id][pet] -= qtd;
+
+    if (db[message.author.id][pet] <= 0) {
+      delete db[message.author.id][pet];
+    }
+
+    saveDB(db);
+
+    return message.reply(`🗑️ Removido ${qtd}x ${pet}`);
+  }
+
+  // =========================
+  // MEUS PETS
+  // =========================
+  if (message.content === "/meuspets") {
+    const user = db[message.author.id];
+
+    if (!user) return message.reply("Você não tem pets.");
+
+    let text = "📦 SEUS PETS:\n\n";
+
+    for (let p in user) {
+      text += `• ${p}: ${user[p]}x\n`;
+    }
+
+    return message.reply(text);
+  }
+
+  // =========================
+  // AVALIAR (W OR L)
+  // =========================
   if (message.content.startsWith("/avaliar")) {
     const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
 
@@ -121,33 +154,40 @@ client.on("messageCreate", async (message) => {
       return message.reply("Use: /avaliar pet + pet vs pet + pet");
     }
 
-    const lado1 = parts[0].split("+").map(p => p.trim().toLowerCase());
-    const lado2 = parts[1].split("+").map(p => p.trim().toLowerCase());
+    const lado1 = parts[0].split("+").map(p => p.trim().toLowerCase()).filter(Boolean);
+    const lado2 = parts[1].split("+").map(p => p.trim().toLowerCase()).filter(Boolean);
 
     let t1 = 0;
     let t2 = 0;
 
     for (let p of lado1) {
-      if (!p) continue;
       const v = getPetValue(p);
-      if (v === -1) return message.reply(`❌ ${p} não existe`);
+      if (v === -1) return message.reply(`❌ Pet inválido: ${p}`);
       t1 += v;
     }
 
     for (let p of lado2) {
-      if (!p) continue;
       const v = getPetValue(p);
-      if (v === -1) return message.reply(`❌ ${p} não existe`);
+      if (v === -1) return message.reply(`❌ Pet inválido: ${p}`);
       t2 += v;
     }
 
-    const frames = criarFramesBarra(t1, t2);
+    // barra simples
+    const size = 10;
+    const total = t1 + t2;
+    const p1 = total === 0 ? 0 : t1 / total;
 
+    const green = Math.round(p1 * size);
+    const red = size - green;
+
+    const barra = "🟩".repeat(green) + "🟥".repeat(red);
+
+    // resultado
     const diff = Math.abs(t1 - t2);
     const media = (t1 + t2) / 2;
-    const percent = diff / media;
+    const percent = media === 0 ? 0 : diff / media;
 
-    let resultado = "";
+    let resultado;
 
     if (percent <= 0.05) {
       resultado = "⚖️ FAIR TRADE";
@@ -157,19 +197,19 @@ client.on("messageCreate", async (message) => {
       resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
     }
 
-    const msg = await message.reply("⏳ analisando trade...");
+    return message.reply(
+`📊 W OR L
 
-    for (let i = 0; i < frames.length; i++) {
-      await new Promise(r => setTimeout(r, 120));
+📦 SUA OFERTA:
+${lado1.join(" + ")}
 
-      await msg.edit({
-        content: `📊 W OR L\n\n${frames[i]}\n\n⏳ calculando...`
-      });
-    }
+📦 OFERTA DELE:
+${lado2.join(" + ")}
 
-    await msg.edit({
-      content: `📊 W OR L\n\n${frames[frames.length - 1]}\n\n⚖️ **${resultado}**`
-    });
+${barra}
+
+⚖️ **${resultado}**`
+    );
   }
 });
 
