@@ -7,7 +7,13 @@ global.botRunning = true;
 
 const express = require("express");
 const fs = require("fs");
-const { Client, GatewayIntentBits } = require("discord.js");
+const {
+  Client,
+  GatewayIntentBits,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle
+} = require("discord.js");
 
 const pets = require("./pets");
 const mutacoesCorpo = require("./data/mutacoesCorpo");
@@ -52,10 +58,44 @@ function getPetValue(nomeCompleto) {
     }
   }
 
-  const base = pets[nome];
-  if (!base) return -1;
+  // 🔥 CORREÇÃO INTELIGENTE (nome parecido)
+  let base = pets[nome];
+
+  if (!base) {
+    const keys = Object.keys(pets);
+    let best = null;
+    let bestScore = 0;
+
+    for (let k of keys) {
+      let score = similarity(nome, k);
+      if (score > bestScore) {
+        bestScore = score;
+        best = k;
+      }
+    }
+
+    if (bestScore >= 0.6) {
+      nome = best;
+      base = pets[best];
+    } else {
+      return -1;
+    }
+  }
 
   return Math.floor(base * mult);
+}
+
+// comparação simples
+function similarity(a, b) {
+  a = a.toLowerCase();
+  b = b.toLowerCase();
+  let match = 0;
+
+  for (let c of a) {
+    if (b.includes(c)) match++;
+  }
+
+  return match / Math.max(a.length, b.length);
 }
 
 // =========================
@@ -83,9 +123,7 @@ client.on("messageCreate", async (message) => {
 
   const db = loadDB();
 
-  // =========================
   // ADD PET
-  // =========================
   if (message.content.startsWith("/addpet")) {
     const args = message.content.split(" ").slice(1);
     const pet = args[0]?.toLowerCase().trim();
@@ -102,9 +140,7 @@ client.on("messageCreate", async (message) => {
     return message.reply(`✅ Adicionado ${qtd}x ${pet}`);
   }
 
-  // =========================
   // REMOVE PET
-  // =========================
   if (message.content.startsWith("/removepet")) {
     const args = message.content.split(" ").slice(1);
     const pet = args[0]?.toLowerCase().trim();
@@ -118,34 +154,26 @@ client.on("messageCreate", async (message) => {
 
     db[message.author.id][pet] -= qtd;
 
-    if (db[message.author.id][pet] <= 0) {
-      delete db[message.author.id][pet];
-    }
+    if (db[message.author.id][pet] <= 0) delete db[message.author.id][pet];
 
     saveDB(db);
 
     return message.reply(`🗑️ Removido ${qtd}x ${pet}`);
   }
 
-  // =========================
   // MEUS PETS
-  // =========================
   if (message.content === "/meuspets") {
     const user = db[message.author.id];
-
     if (!user) return message.reply("Você não tem pets.");
 
     let text = "📦 SEUS PETS:\n\n";
-
-    for (let p in user) {
-      text += `• ${p}: ${user[p]}x\n`;
-    }
+    for (let p in user) text += `• ${p}: ${user[p]}x\n`;
 
     return message.reply(text);
   }
 
   // =========================
-  // AVALIAR (W OR L)
+  // AVALIAR (W OR L + BOTÕES)
   // =========================
   if (message.content.startsWith("/avaliar")) {
     const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
@@ -172,7 +200,6 @@ client.on("messageCreate", async (message) => {
       t2 += v;
     }
 
-    // barra simples
     const size = 10;
     const total = t1 + t2;
     const p1 = total === 0 ? 0 : t1 / total;
@@ -182,22 +209,34 @@ client.on("messageCreate", async (message) => {
 
     const barra = "🟩".repeat(green) + "🟥".repeat(red);
 
-    // resultado
     const diff = Math.abs(t1 - t2);
     const media = (t1 + t2) / 2;
     const percent = media === 0 ? 0 : diff / media;
 
     let resultado;
+    if (percent <= 0.05) resultado = "⚖️ FAIR TRADE";
+    else if (percent <= 0.15) resultado = t2 > t1 ? "🟡 LEVE GANHO" : "🟠 LEVE PERDA";
+    else resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
 
-    if (percent <= 0.05) {
-      resultado = "⚖️ FAIR TRADE";
-    } else if (percent <= 0.15) {
-      resultado = t2 > t1 ? "🟡 LEVE GANHO" : "🟠 LEVE PERDA";
-    } else {
-      resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
-    }
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("win")
+        .setLabel("WIN")
+        .setStyle(ButtonStyle.Success),
 
-    return message.reply(
+      new ButtonBuilder()
+        .setCustomId("fair")
+        .setLabel("FAIR")
+        .setStyle(ButtonStyle.Secondary),
+
+      new ButtonBuilder()
+        .setCustomId("lose")
+        .setLabel("LOSE")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    return message.reply({
+      content:
 `📊 W OR L
 
 📦 SUA OFERTA:
@@ -208,8 +247,26 @@ ${lado2.join(" + ")}
 
 ${barra}
 
-⚖️ **${resultado}**`
-    );
+⚖️ **${resultado}**`,
+      components: [row]
+    });
+  }
+});
+
+// BOTÕES
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isButton()) return;
+
+  if (interaction.customId === "win") {
+    return interaction.reply({ content: "🟢 WIN TRADE", ephemeral: true });
+  }
+
+  if (interaction.customId === "fair") {
+    return interaction.reply({ content: "⚖️ FAIR TRADE", ephemeral: true });
+  }
+
+  if (interaction.customId === "lose") {
+    return interaction.reply({ content: "🔴 LOSE TRADE", ephemeral: true });
   }
 });
 
