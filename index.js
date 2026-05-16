@@ -1,3 +1,13 @@
+// 🔒 Anti-bot duplicado
+if (global.botRunning) {
+  console.log("Bot já está rodando, encerrando duplicado...");
+  process.exit(0);
+}
+global.botRunning = true;
+
+const express = require("express");
+const fs = require("fs");
+const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 const express = require("express");
 const fs = require("fs");
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
