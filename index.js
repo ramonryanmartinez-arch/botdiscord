@@ -8,12 +8,9 @@ global.botRunning = true;
 const express = require("express");
 const fs = require("fs");
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
-const express = require("express");
-const fs = require("fs");
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
 const pets = require("./pets");
-const mutacoes = require("./data/mutacoesCorpo");
+const mutacoesCorpo = require("./data/mutacoesCorpo");
 
 // =========================
 // DATABASE
@@ -39,7 +36,7 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// FUNÇÃO VALOR PET (CORRIGIDA)
+// FUNÇÃO VALOR PET
 // =========================
 
 function getPetValue(nomeCompleto) {
@@ -48,9 +45,9 @@ function getPetValue(nomeCompleto) {
   let nome = nomeCompleto.toLowerCase().trim();
   let mult = 1;
 
-  for (let m in mutacoes) {
+  for (let m in mutacoesCorpo) {
     if (nome.includes(m)) {
-      mult *= mutacoes[m];
+      mult *= mutacoesCorpo[m];
       nome = nome.replace(m, "").trim();
     }
   }
@@ -168,19 +165,21 @@ client.on("messageCreate", async (message) => {
       return message.reply("Use: /avaliar pet + pet vs pet + pet");
     }
 
-    const lado1 = parts[0].split("+").map(p => p.trim());
-    const lado2 = parts[1].split("+").map(p => p.trim());
+    const lado1 = parts[0].split("+").map(p => p.trim().toLowerCase());
+    const lado2 = parts[1].split("+").map(p => p.trim().toLowerCase());
 
     let t1 = 0;
     let t2 = 0;
 
     for (let p of lado1) {
+      if (!p) continue;
       const v = getPetValue(p);
       if (v === -1) return message.reply(`❌ ${p} não existe`);
       t1 += v;
     }
 
     for (let p of lado2) {
+      if (!p) continue;
       const v = getPetValue(p);
       if (v === -1) return message.reply(`❌ ${p} não existe`);
       t2 += v;
@@ -192,9 +191,13 @@ client.on("messageCreate", async (message) => {
 
     let resultado = "";
 
-    if (percent <= 0.05) resultado = "⚖️ justa";
-    else if (percent <= 0.15) resultado = t2 > t1 ? "🟠 Ganha um pouco" : "🔴 Perde um pouco";
-    else resultado = t2 > t1 ? "✅ Você sai ganhando" : "❌ Você sai perdendo";
+    if (percent <= 0.05) {
+      resultado = "⚖️ justa";
+    } else if (percent <= 0.15) {
+      resultado = t2 > t1 ? "🟠 Ganha um pouco" : "🔴 Perde um pouco";
+    } else {
+      resultado = t2 > t1 ? "✅ Você sai ganhando" : "❌ Você sai perdendo";
+    }
 
     const embed = new EmbedBuilder()
       .setTitle("📊 TRADE")
