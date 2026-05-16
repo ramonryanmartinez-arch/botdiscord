@@ -184,7 +184,7 @@ client.on("messageCreate", async (message) => {
 
     if (percent <= 0.05) resultado = "⚖️ justa";
     else if (percent <= 0.15) resultado = t2 > t1 ? "🟠 Ganha um pouco" : "🔴 Perde um pouco";
-    else resultado = t2 > t1 ? "❌ Você sai ganhando" : "❌ Você sai perdendo";
+    else resultado = t2 > t1 ? "✅ Você sai ganhando" : "❌ Você sai perdendo";
 
     const embed = new EmbedBuilder()
       .setTitle("📊 TRADE")
