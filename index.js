@@ -3,6 +3,8 @@ const fs = require("fs");
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
 const pets = require("./pets");
+const mutacoesCorpo = require("./data/mutacoesCorpo");
+const mutacoesPele = require("./data/mutacoesPele");
 
 // =========================
 // DATABASE
@@ -26,6 +28,34 @@ function saveDB(db) {
 const app = express();
 app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
+
+// =========================
+// FUNÇÃO VALOR PET (IMPORTANTE)
+// =========================
+
+function getPetValue(nomeCompleto) {
+  let nome = nomeCompleto.toLowerCase();
+  let mult = 1;
+
+  for (let m in mutacoesCorpo) {
+    if (nome.includes(m)) {
+      mult *= mutacoesCorpo[m];
+      nome = nome.replace(m, "").trim();
+    }
+  }
+
+  for (let m in mutacoesPele) {
+    if (nome.includes(m)) {
+      mult *= mutacoesPele[m];
+      nome = nome.replace(m, "").trim();
+    }
+  }
+
+  const base = pets[nome];
+  if (!base) return -1;
+
+  return Math.floor(base * mult);
+}
 
 // =========================
 // DISCORD
@@ -141,14 +171,14 @@ client.on("messageCreate", async (message) => {
     let t2 = 0;
 
     for (let p of lado1) {
-      const v = pets[p];
-      if (!v) return message.reply(`❌ ${p} não existe`);
+      const v = getPetValue(p);
+      if (v === -1) return message.reply(`❌ ${p} não existe`);
       t1 += v;
     }
 
     for (let p of lado2) {
-      const v = pets[p];
-      if (!v) return message.reply(`❌ ${p} não existe`);
+      const v = getPetValue(p);
+      if (v === -1) return message.reply(`❌ ${p} não existe`);
       t2 += v;
     }
 
