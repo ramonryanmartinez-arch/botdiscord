@@ -36,7 +36,7 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// FUNÇÃO VALOR PET
+// VALOR DO PET
 // =========================
 
 function getPetValue(nomeCompleto) {
@@ -56,6 +56,24 @@ function getPetValue(nomeCompleto) {
   if (!base) return -1;
 
   return Math.floor(base * mult);
+}
+
+// =========================
+// BARRA DE TRADE
+// =========================
+
+function criarBarra(v1, v2) {
+  const total = v1 + v2;
+
+  if (total === 0) return "⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪";
+
+  const size = 10;
+  const p1 = v1 / total;
+
+  const verdes = Math.round(p1 * size);
+  const vermelhos = size - verdes;
+
+  return "🟩".repeat(verdes) + "🟥".repeat(vermelhos);
 }
 
 // =========================
@@ -157,7 +175,7 @@ client.on("messageCreate", async (message) => {
     return message.reply(text);
   }
 
-  // 📊 TRADE
+  // ⚖️ TRADE / AVALIAR
   if (message.content.startsWith("/avaliar")) {
     const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
 
@@ -185,6 +203,8 @@ client.on("messageCreate", async (message) => {
       t2 += v;
     }
 
+    const barra = criarBarra(t1, t2);
+
     const diff = Math.abs(t1 - t2);
     const media = (t1 + t2) / 2;
     const percent = diff / media;
@@ -192,21 +212,28 @@ client.on("messageCreate", async (message) => {
     let resultado = "";
 
     if (percent <= 0.05) {
-      resultado = "⚖️ justa";
+      resultado = "⚖️ FAIR TRADE";
     } else if (percent <= 0.15) {
-      resultado = t2 > t1 ? "🟠 Ganha um pouco" : "🔴 Perde um pouco";
+      resultado = t2 > t1 ? "🟡 LEVE GANHO" : "🟠 LEVE PERDA";
     } else {
-      resultado = t2 > t1 ? "✅ Você sai ganhando" : "❌ Você sai perdendo";
+      resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
     }
 
     const embed = new EmbedBuilder()
-      .setTitle("📊 TRADE")
+      .setTitle("⚖️ TRADE CHECKER")
+      .setColor(0x2b2d31)
       .addFields(
-        { name: "Seu lado", value: `${parts[0]}\n💰 ${t1}` },
-        { name: "Outro lado", value: `${parts[1]}\n💰 ${t2}` },
-        { name: "Resultado", value: resultado }
-      )
-      .setColor(0x00bfff);
+        {
+          name: "📊 BALANÇO",
+          value: barra,
+          inline: false
+        },
+        {
+          name: "📌 RESULTADO",
+          value: `**${resultado}**`,
+          inline: false
+        }
+      );
 
     return message.reply({ embeds: [embed] });
   }
