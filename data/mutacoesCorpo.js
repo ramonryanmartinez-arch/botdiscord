@@ -62,11 +62,6 @@ module.exports = {
   "atingido por cometa": 3.5,
   neve: 3,
   molhado: 2.5,
-
-  // =========================
-  // 🧬 MUTAÇÕES PELE (ADICIONADAS)
-  // =========================
-
   bloodroot: 2,
   candy: 3,
   lava: 6,

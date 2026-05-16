@@ -3,8 +3,7 @@ const fs = require("fs");
 const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
 
 const pets = require("./pets");
-const mutacoesCorpo = require("./data/mutacoesCorpo");
-const mutacoesPele = require("./data/mutacoesPele");
+const mutacoes = require("./data/mutacoesCorpo");
 
 // =========================
 // DATABASE
@@ -30,23 +29,18 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// FUNÇÃO VALOR PET (IMPORTANTE)
+// FUNÇÃO VALOR PET (CORRIGIDA)
 // =========================
 
 function getPetValue(nomeCompleto) {
-  let nome = nomeCompleto.toLowerCase();
+  if (!nomeCompleto) return -1;
+
+  let nome = nomeCompleto.toLowerCase().trim();
   let mult = 1;
 
-  for (let m in mutacoesCorpo) {
+  for (let m in mutacoes) {
     if (nome.includes(m)) {
-      mult *= mutacoesCorpo[m];
-      nome = nome.replace(m, "").trim();
-    }
-  }
-
-  for (let m in mutacoesPele) {
-    if (nome.includes(m)) {
-      mult *= mutacoesPele[m];
+      mult *= mutacoes[m];
       nome = nome.replace(m, "").trim();
     }
   }
@@ -85,7 +79,7 @@ client.on("messageCreate", async (message) => {
   // 📦 ADD PET
   if (message.content.startsWith("/addpet")) {
     const args = message.content.split(" ").slice(1);
-    const pet = args[0]?.toLowerCase();
+    const pet = args[0]?.toLowerCase().trim();
     const qtd = parseInt(args[1] || "1");
 
     if (!pet) return message.reply("Use: /addpet nome quantidade");
@@ -102,7 +96,7 @@ client.on("messageCreate", async (message) => {
   // 🗑️ REMOVE PET
   if (message.content.startsWith("/removepet")) {
     const args = message.content.split(" ").slice(1);
-    const pet = args[0]?.toLowerCase();
+    const pet = args[0]?.toLowerCase().trim();
     const qtd = parseInt(args[1] || "1");
 
     if (!pet) return message.reply("Use: /removepet nome quantidade");
@@ -124,7 +118,7 @@ client.on("messageCreate", async (message) => {
 
   // 🔎 PROCURAR
   if (message.content.startsWith("/procurar")) {
-    const pet = message.content.split(" ").slice(1).join(" ").toLowerCase();
+    const pet = message.content.split(" ").slice(1).join(" ").toLowerCase().trim();
 
     let result = [];
 
@@ -156,7 +150,7 @@ client.on("messageCreate", async (message) => {
     return message.reply(text);
   }
 
-  // 📊 TRADE AVALIAR
+  // 📊 TRADE
   if (message.content.startsWith("/avaliar")) {
     const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
 
