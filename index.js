@@ -42,7 +42,23 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// VALOR DO PET
+// SIMILARIDADE (ERRO DE ESCRITA)
+// =========================
+
+function similarity(a, b) {
+  a = a.toLowerCase();
+  b = b.toLowerCase();
+  let match = 0;
+
+  for (let c of a) {
+    if (b.includes(c)) match++;
+  }
+
+  return match / Math.max(a.length, b.length);
+}
+
+// =========================
+// VALOR DO PET (COM CORREÇÃO)
 // =========================
 
 function getPetValue(nomeCompleto) {
@@ -58,16 +74,15 @@ function getPetValue(nomeCompleto) {
     }
   }
 
-  // 🔥 CORREÇÃO INTELIGENTE (nome parecido)
   let base = pets[nome];
 
+  // 🔥 correção automática de nome errado
   if (!base) {
-    const keys = Object.keys(pets);
     let best = null;
     let bestScore = 0;
 
-    for (let k of keys) {
-      let score = similarity(nome, k);
+    for (let k of Object.keys(pets)) {
+      const score = similarity(nome, k);
       if (score > bestScore) {
         bestScore = score;
         best = k;
@@ -75,27 +90,14 @@ function getPetValue(nomeCompleto) {
     }
 
     if (bestScore >= 0.6) {
-      nome = best;
       base = pets[best];
+      nome = best;
     } else {
       return -1;
     }
   }
 
   return Math.floor(base * mult);
-}
-
-// comparação simples
-function similarity(a, b) {
-  a = a.toLowerCase();
-  b = b.toLowerCase();
-  let match = 0;
-
-  for (let c of a) {
-    if (b.includes(c)) match++;
-  }
-
-  return match / Math.max(a.length, b.length);
 }
 
 // =========================
@@ -123,7 +125,9 @@ client.on("messageCreate", async (message) => {
 
   const db = loadDB();
 
+  // =========================
   // ADD PET
+  // =========================
   if (message.content.startsWith("/addpet")) {
     const args = message.content.split(" ").slice(1);
     const pet = args[0]?.toLowerCase().trim();
@@ -140,7 +144,9 @@ client.on("messageCreate", async (message) => {
     return message.reply(`✅ Adicionado ${qtd}x ${pet}`);
   }
 
+  // =========================
   // REMOVE PET
+  // =========================
   if (message.content.startsWith("/removepet")) {
     const args = message.content.split(" ").slice(1);
     const pet = args[0]?.toLowerCase().trim();
@@ -153,7 +159,6 @@ client.on("messageCreate", async (message) => {
     }
 
     db[message.author.id][pet] -= qtd;
-
     if (db[message.author.id][pet] <= 0) delete db[message.author.id][pet];
 
     saveDB(db);
@@ -161,7 +166,9 @@ client.on("messageCreate", async (message) => {
     return message.reply(`🗑️ Removido ${qtd}x ${pet}`);
   }
 
+  // =========================
   // MEUS PETS
+  // =========================
   if (message.content === "/meuspets") {
     const user = db[message.author.id];
     if (!user) return message.reply("Você não tem pets.");
@@ -200,6 +207,7 @@ client.on("messageCreate", async (message) => {
       t2 += v;
     }
 
+    // barra
     const size = 10;
     const total = t1 + t2;
     const p1 = total === 0 ? 0 : t1 / total;
@@ -209,14 +217,22 @@ client.on("messageCreate", async (message) => {
 
     const barra = "🟩".repeat(green) + "🟥".repeat(red);
 
+    // resultado correto
+    const euGanho = t1 > t2;
+
     const diff = Math.abs(t1 - t2);
     const media = (t1 + t2) / 2;
     const percent = media === 0 ? 0 : diff / media;
 
     let resultado;
-    if (percent <= 0.05) resultado = "⚖️ FAIR TRADE";
-    else if (percent <= 0.15) resultado = t2 > t1 ? "🟡 LEVE GANHO" : "🟠 LEVE PERDA";
-    else resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
+
+    if (percent <= 0.05) {
+      resultado = "⚖️ FAIR TRADE";
+    } else if (percent <= 0.15) {
+      resultado = euGanho ? "🟡 VOCÊ GANHA POUCO" : "🟠 VOCÊ PERDE POUCO";
+    } else {
+      resultado = euGanho ? "🟢 VOCÊ GANHOU" : "🔴 VOCÊ PERDEU";
+    }
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
