@@ -7,7 +7,7 @@ global.botRunning = true;
 
 const express = require("express");
 const fs = require("fs");
-const { Client, GatewayIntentBits, EmbedBuilder } = require("discord.js");
+const { Client, GatewayIntentBits } = require("discord.js");
 
 const pets = require("./pets");
 const mutacoesCorpo = require("./data/mutacoesCorpo");
@@ -36,7 +36,7 @@ app.get("/", (req, res) => res.send("Bot online"));
 app.listen(process.env.PORT || 3000);
 
 // =========================
-// VALOR DO PET
+// VALOR PET
 // =========================
 
 function getPetValue(nomeCompleto) {
@@ -59,21 +59,33 @@ function getPetValue(nomeCompleto) {
 }
 
 // =========================
-// BARRA DE TRADE
+// BARRA ANIMADA
 // =========================
 
-function criarBarra(v1, v2) {
+function criarFramesBarra(v1, v2) {
   const total = v1 + v2;
-
-  if (total === 0) return "⚪⚪⚪⚪⚪⚪⚪⚪⚪⚪";
-
   const size = 10;
-  const p1 = v1 / total;
 
-  const verdes = Math.round(p1 * size);
-  const vermelhos = size - verdes;
+  const p1 = total === 0 ? 0 : v1 / total;
+  const verdesFinais = Math.round(p1 * size);
 
-  return "🟩".repeat(verdes) + "🟥".repeat(vermelhos);
+  let frames = [];
+
+  for (let i = 0; i <= size; i++) {
+    let barra = "";
+
+    for (let j = 0; j < size; j++) {
+      if (j < i) {
+        barra += j < verdesFinais ? "🟩" : "🟥";
+      } else {
+        barra += "⬛";
+      }
+    }
+
+    frames.push(barra);
+  }
+
+  return frames;
 }
 
 // =========================
@@ -101,81 +113,7 @@ client.on("messageCreate", async (message) => {
 
   const db = loadDB();
 
-  // 📦 ADD PET
-  if (message.content.startsWith("/addpet")) {
-    const args = message.content.split(" ").slice(1);
-    const pet = args[0]?.toLowerCase().trim();
-    const qtd = parseInt(args[1] || "1");
-
-    if (!pet) return message.reply("Use: /addpet nome quantidade");
-
-    if (!db[message.author.id]) db[message.author.id] = {};
-    if (!db[message.author.id][pet]) db[message.author.id][pet] = 0;
-
-    db[message.author.id][pet] += qtd;
-    saveDB(db);
-
-    return message.reply(`✅ Adicionado ${qtd}x ${pet}`);
-  }
-
-  // 🗑️ REMOVE PET
-  if (message.content.startsWith("/removepet")) {
-    const args = message.content.split(" ").slice(1);
-    const pet = args[0]?.toLowerCase().trim();
-    const qtd = parseInt(args[1] || "1");
-
-    if (!pet) return message.reply("Use: /removepet nome quantidade");
-
-    if (!db[message.author.id] || !db[message.author.id][pet]) {
-      return message.reply("❌ Você não tem esse pet.");
-    }
-
-    db[message.author.id][pet] -= qtd;
-
-    if (db[message.author.id][pet] <= 0) {
-      delete db[message.author.id][pet];
-    }
-
-    saveDB(db);
-
-    return message.reply(`🗑️ Removido ${qtd}x ${pet}`);
-  }
-
-  // 🔎 PROCURAR
-  if (message.content.startsWith("/procurar")) {
-    const pet = message.content.split(" ").slice(1).join(" ").toLowerCase().trim();
-
-    let result = [];
-
-    for (let user in db) {
-      if (db[user][pet]) {
-        result.push(`👤 <@${user}> → ${db[user][pet]}x`);
-      }
-    }
-
-    if (result.length === 0) {
-      return message.reply("❌ Ninguém possui esse pet.");
-    }
-
-    return message.reply(`🔎 ${pet}\n\n${result.join("\n")}`);
-  }
-
-  // 📦 MEUS PETS
-  if (message.content === "/meuspets") {
-    const user = db[message.author.id];
-
-    if (!user) return message.reply("Você não tem pets.");
-
-    let text = "📦 SEUS PETS:\n\n";
-
-    for (let p in user) {
-      text += `• ${p}: ${user[p]}x\n`;
-    }
-
-    return message.reply(text);
-  }
-
-  // ⚖️ TRADE / AVALIAR
+  // 📊 AVALIAR (W OR L ANIMADO)
   if (message.content.startsWith("/avaliar")) {
     const parts = message.content.replace("/avaliar", "").trim().split(" vs ");
 
@@ -203,7 +141,7 @@ client.on("messageCreate", async (message) => {
       t2 += v;
     }
 
-    const barra = criarBarra(t1, t2);
+    const frames = criarFramesBarra(t1, t2);
 
     const diff = Math.abs(t1 - t2);
     const media = (t1 + t2) / 2;
@@ -219,23 +157,19 @@ client.on("messageCreate", async (message) => {
       resultado = t2 > t1 ? "🟢 WIN TRADE" : "🔴 LOSE TRADE";
     }
 
-    const embed = new EmbedBuilder()
-      .setTitle("⚖️ TRADE CHECKER")
-      .setColor(0x2b2d31)
-      .addFields(
-        {
-          name: "📊 BALANÇO",
-          value: barra,
-          inline: false
-        },
-        {
-          name: "📌 RESULTADO",
-          value: `**${resultado}**`,
-          inline: false
-        }
-      );
+    const msg = await message.reply("⏳ analisando trade...");
 
-    return message.reply({ embeds: [embed] });
+    for (let i = 0; i < frames.length; i++) {
+      await new Promise(r => setTimeout(r, 120));
+
+      await msg.edit({
+        content: `📊 W OR L\n\n${frames[i]}\n\n⏳ calculando...`
+      });
+    }
+
+    await msg.edit({
+      content: `📊 W OR L\n\n${frames[frames.length - 1]}\n\n⚖️ **${resultado}**`
+    });
   }
 });
 
